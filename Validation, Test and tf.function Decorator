@@ -9,25 +9,25 @@ from tensorflow.keras.losses import SparseCategoricalCrossentropy
 from tensorflow.keras.optimizers import SGD 
 from tensorflow.keras.metrics import SparseCategoricalAccuracy, Mean
 
-n_train , n_validation, n_test = 1000 , 300 , 300  #detaset 개수
+n_train , n_validation, n_test = 1000 , 300 , 300  #Dataset 개수
 
 train_x = np.random.normal(0, 1 ,size=(n_train,1)).astype(np.float32)
-train_x_noise = train_x + 0.2*np.random.normal(0, 1, size =(n_train, 1))  #deta 노이즈 추가
+train_x_noise = train_x + 0.2*np.random.normal(0, 1, size =(n_train, 1))  #Deta에 Noise 추가
 train_y = (train_x_noise > 0).astype(np.int32)
 
 validation_x = np.random.normal(0, 1 ,size=(n_validation,1)).astype(np.float32)
-validation_x_noise = validation_x + 0.2*np.random.normal(0, 1, size =(n_validation, 1)) #deta 노이즈 추가
+validation_x_noise = validation_x + 0.2*np.random.normal(0, 1, size =(n_validation, 1)) #Deta에 Noise 추가
 validation_y = (validation_x_noise > 0).astype(np.int32)
 
 
 test_x = np.random.normal(0, 1 ,size=(n_test,1)).astype(np.float32)
-test_x_noise = test_x + 0.2*np.random.normal(0, 1, size =(n_test, 1)) #deta 노이즈 추가
+test_x_noise = test_x + 0.2*np.random.normal(0, 1, size =(n_test, 1)) #Deta에 Noise 추가
 test_y = (test_x_noise > 0).astype(np.int32)
 
 
 
 train_ds = tf.data.Dataset.from_tensor_slices((train_x, train_y))
-train_ds = train_ds.shuffle(n_train).batch(8) 
+train_ds = train_ds.shuffle(n_train).batch(8) #Over Fitting 방지를 위한 Shuffle
 
 validation_ds = tf.data.Dataset.from_tensor_slices((validation_x, 
                                                     validation_y))
@@ -36,13 +36,14 @@ validation_ds = validation_ds.batch(n_validation)
 test_ds = tf.data.Dataset.from_tensor_slices((test_x, test_y))
 test_ds = test_ds.batch(n_test) 
 
+#------------------------------------------------------------------------------------Dataset 만들기
+
+
 model = Sequential()
 model.add(Dense(units=2, activation = 'softmax'))
 
-
-
 loss_object = SparseCategoricalCrossentropy()
-optimizer = SGD(learning_rate = 0.7) #
+optimizer = SGD(learning_rate = 0.7) 
 
 train_loss = Mean()
 train_acc = SparseCategoricalAccuracy()
@@ -57,7 +58,7 @@ EPOCHS = 50
 
 
 @tf.function #속도상승을 위해 사용
-def train_step(x, y): 
+def train_step(x, y): #Dataset 학습단계
   global model, loss_object
   global train_loss, train_acc
   
@@ -88,7 +89,7 @@ def validation():
 
 
 
-def train_repoter(): 
+def train_repoter(): #Loss 값과 Accuracy값 출력
   global epoch
   global train_loss, train_acc
   global validation_loss, validation_acc
@@ -103,7 +104,7 @@ def train_repoter():
   
 
     
-def matric_resetter():  
+def matric_resetter():  #누적된 Loss, Accuracy metrics 초기화
   global train_loss, train_acc
   global validation_loss, validation_acc
 
@@ -119,7 +120,7 @@ def matric_resetter():
 
 
 
-def final_result_visualization(): #데이터 시각화
+def final_result_visualization():  #데이터 시각화
   global train_losses, validation_losses
   global train_accs, validation_accs
 
@@ -150,7 +151,8 @@ def final_result_visualization(): #데이터 시각화
 train_losses, validation_losses = [], []
 train_accs, validation_accs = [], []
 
-for epoch in range(EPOCHS):
+
+for epoch in range(EPOCHS): #Train단계
   for x, y in train_ds:
     train_step(x, y)
    
@@ -159,7 +161,7 @@ for epoch in range(EPOCHS):
   matric_resetter()
 
   
-for x, y in test_ds:
+for x, y in test_ds: #Test단계
        
   predictions = model(x)
   loss = loss_object(y, predictions)
