@@ -154,12 +154,14 @@ train_ds, validation_ds, test_ds, n_train = load_dataset()
 standardization(TRAIN_BATCH_SIZE, TEST_BATCH_SIZE)
 
 model = MNIST_Classifier()
+model.build(input_shape=(None, 28, 28, 1))
+
 loss_object = SparseCategoricalCrossentropy()
 optimizer = Adam() #default 값 사용
 
 load_metrics()
 
-ITER_PER_EPOCHS = (n_train / TRAIN_BATCH_SIZE)
+#ITER_PER_EPOCHS = (n_train / TRAIN_BATCH_SIZE)
 
 for epoch in range(EPOCHS):
   training()
