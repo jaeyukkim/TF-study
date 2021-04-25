@@ -176,7 +176,7 @@ def train_result_and_reset_state():
 
 
 
-EPOCHS = 30
+EPOCHS = 15
 #LR = 0.001
 TRAIN_BATCH_SIZE = 100
 TEST_BATCH_SIZE = 100
