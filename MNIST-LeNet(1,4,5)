@@ -1,0 +1,237 @@
+import tensorflow as tf
+import numpy as np
+from termcolor import colored
+import tensorflow_datasets as tfds
+
+from tensorflow.keras.losses import SparseCategoricalCrossentropy
+from tensorflow.keras.optimizers import SGD, Adam
+from tensorflow.keras.layers import Dense, Conv2D, AveragePooling2D
+from tensorflow.keras.layers import Activation, Flatten, Dropout, ZeroPadding2D
+from tensorflow.keras.metrics import SparseCategoricalAccuracy, Mean
+from tensorflow.keras.models import Model
+
+
+# class Lenet1_classification(Model):
+#   def __init__(self):
+#     super(Lenet1_classification, self).__init__()
+    
+#     self.c1 = Conv2D(4, kernel_size=(5,5), padding='valid', activation='tanh')
+#     self.a2 = AveragePooling2D(pool_size=(2,2), strides = 2)
+#     self.c3 = Conv2D(12, kernel_size=(5,5), padding='valid', activation='tanh')
+#     self.c4 = AveragePooling2D(pool_size=(2,2), strides = 2)
+
+#     self.flatten = Flatten()
+#     self.f5 = Dense(10, activation='softmax')
+
+#   def call(self, x):-
+#     x = self.c1(x)
+#     x = self.a2(x)
+#     x = self.c3(x)
+#     x = self.c4(x)
+#     x = self.flatten(x)
+#     x = self.f5(x)
+
+#     return x
+
+
+# class Lenet4_classification(Model):
+#   def __init__(self):
+#     super(Lenet4_classification, self).__init__()
+
+#     self.zero = ZeroPadding2D(padding = 2)
+#     self.c1 = Conv2D(4, kernel_size=(5,5), padding='valid', activation='tanh')
+#     self.a2 = AveragePooling2D(pool_size=(2,2), strides = 2)
+#     self.c3 = Conv2D(16, kernel_size=(5,5), padding='valid', activation='tanh')
+#     self.c4 = AveragePooling2D(pool_size=(2,2), strides = 2)
+
+#     self.flatten = Flatten()
+#     self.f5 = Dense(120, activation='tanh')
+#     self.f6 = Dense(10, activation='softmax')
+
+#   def call(self, x):
+#     x = self.zero(x)
+#     x = self.c1(x)
+#     x = self.a2(x)
+#     x = self.c3(x)
+#     x = self.c4(x)
+#     x = self.flatten(x)
+#     x = self.f5(x)
+#     x = self.f6(x)
+
+#     return x
+
+
+class Lenet5_classification(Model):
+  def __init__(self):
+    super(Lenet5_classification, self).__init__()
+
+    self.zero = ZeroPadding2D(padding = 2)
+    self.c1 = Conv2D(6, kernel_size=(5,5), padding='valid', activation='tanh')
+    self.a2 = AveragePooling2D(pool_size=(2,2), strides = 2)
+    self.c3 = Conv2D(16, kernel_size=(5,5), padding='valid', activation='tanh')
+    self.c4 = AveragePooling2D(pool_size=(2,2), strides = 2)
+
+    self.flatten = Flatten()
+    self.f5 = Dense(140, activation='tanh')
+    self.f6 = Dense(84, activation='tanh')
+    self.f7 = Dense(10, activation='softmax')
+
+  def call(self, x):
+    x = self.zero(x)
+    x = self.c1(x)
+    x = self.a2(x)
+    x = self.c3(x)
+    x = self.c4(x)
+    x = self.flatten(x)
+    x = self.f5(x)
+    x = self.f6(x)
+    x = self.f7(x)
+
+    return x
+
+#=============================LeNet=============================
+#=============================Dataset===========================
+
+# train_ds을 validation_ds, train_ds 두개로 나눔
+def load_dataset():
+  (train_validation_ds, test_ds) ,ds_info = tfds.load(name='mnist',
+                                                      split=['train', 'test'],
+                                                      as_supervised=True,
+                                                      with_info=True,
+                                                      shuffle_files = True,
+                                                      batch_size = None)
+  
+  n_train_validation_ds = ds_info.splits['train'].num_examples #60000
+  train_ratio = 0.8  #60000개중 80%를 train_ds로 설정
+  n_train = int(n_train_validation_ds * train_ratio)
+  n_validation = n_train_validation_ds - n_train  #60000개중 train_ds 80%를 제외한 20%로 validation_ds 설정
+
+  train_ds = train_validation_ds.take(n_train)  #48000개
+  remain_ds = train_validation_ds.skip(n_train)
+  validation_ds = remain_ds.take(n_validation) #12000개
+ 
+  return train_ds, validation_ds, test_ds, ds_info
+
+
+def normalization(TRAIN_BATCH_SIZE, TEST_BATCH_SIZE):
+  global train_ds, validation_ds, test_ds
+  
+  def norm(images, labels):
+    images = tf.cast(images, tf.float32) / 255. #픽셀값이 0~255의 grayscale로 설정되어있음. 값이커서 learning 이
+    return [images, labels]                     #제대로 이루어 질 수 없기때문에 normalization을 해줌
+  
+  train_ds = train_ds.map(norm).shuffle(1000).batch(TRAIN_BATCH_SIZE)
+  validation_ds = validation_ds.map(norm).batch(TEST_BATCH_SIZE)
+  test_ds = test_ds.map(norm).batch(TEST_BATCH_SIZE)
+
+#=============================Dataset===========================
+#===============================Run=============================
+
+# 각각의 dataset의 loss와 acc저장을위해 설계
+def load_matrics():
+  global train_loss, validation_loss, test_loss
+  global train_acc, validation_acc, test_acc, loss_object
+  
+  train_loss = Mean()
+  validation_loss = Mean()
+  test_loss = Mean()
+
+  train_acc = SparseCategoricalAccuracy() #label이 one_hot_encoding이 되어있지 않기때문에 SparseCategoricalAccuracy을 사용
+  validation_acc = SparseCategoricalAccuracy()
+  test_acc = SparseCategoricalAccuracy()
+
+
+@tf.function #(속도향상 decoration) compile 단계에서는 오류발생 위험이 있음
+def training():
+  global train_ds, train_loss, train_acc
+  global loss_object, optimizer, model
+
+  for images, labels in train_ds:
+    with tf.GradientTape() as tape:
+      predictions = model(images)  #학습진행
+      loss = loss_object(labels, predictions)  #손실함수 값 loss에 저장
+    
+    gradients = tape.gradient(loss, model.trainable_variables) 
+    optimizer.apply_gradients(zip(gradients, model.trainable_variables)) #params update
+
+    train_loss(loss) #통계를 위한 loss값 누적
+    train_acc(labels, predictions)  #통계를 위한 acc값 누적
+
+
+@tf.function
+def validation():
+  global validation_ds, validation_acc, validation_loss
+  global loss_object, model
+
+  for images, labels in validation_ds: #validation값은 params update의 필요가 없음
+    predictions = model(images)
+    loss = loss_object(labels, predictions)
+      
+    validation_loss(loss)
+    validation_acc(labels, predictions)
+
+
+@tf.function
+def tester():
+  global test_ds, test_acc, test_loss
+  global loss_object, model
+
+  for images, labels in test_ds:      
+    predictions = model(images)
+    loss = loss_object(labels, predictions)
+      
+    test_loss(loss)
+    test_acc(labels, predictions)
+
+#결과를 출력하고 epoch이 끝날때 누적된 loss,acc값을 초기화해줌
+def train_result_and_reset_state():
+  global epoch
+  global train_loss, train_acc
+  global validation_loss, validation_acc
+
+  print(colored('Epochs', 'red', 'on_white'), epoch + 1)
+  temp = 'Train Loss : {:.4f}\t Train Accuracy : {:.2f}%\n' +\
+         'Validation Loss: {:.4f}\t Validation Accuracy : {:.2f}%\n'
+  
+  print(temp.format(train_loss.result(),
+                    train_acc.result()*100,
+                    validation_loss.result(),
+                    validation_acc.result()*100))
+
+  train_loss.reset_states()
+  train_acc.reset_states()
+  validation_loss.reset_states()
+  validation_acc.reset_states()
+
+
+
+EPOCHS = 15
+#LR = 0.001
+TRAIN_BATCH_SIZE = 100
+TEST_BATCH_SIZE = 100
+
+optimizer = Adam() #default 값 사용
+loss_object = SparseCategoricalCrossentropy() #label이 one_hot_encoding이 되어있지 않기때문에 사용
+
+train_ds, validation_ds, test_ds, ds_info = load_dataset()
+normalization(TRAIN_BATCH_SIZE, TEST_BATCH_SIZE)
+
+
+# model = Lenet1_classification()
+# model = Lenet4_classification()
+model = Lenet5_classification()
+
+model.build(input_shape=(None, 28, 28, 1))
+load_matrics()
+
+for epoch in range(EPOCHS):  
+  training()
+  validation()
+  train_result_and_reset_state()
+
+tester()
+print(colored('Epochs', 'cyan', 'on_white') , epoch + 1)
+print('============Test Result============')
+temp = 'TEST LOSS : {:.4f}\t TEST ACC : {:.2f}%\n'
+print(temp.format(test_loss.result(),
+                  test_acc.result()*100))
